@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>A酸療程進度追蹤器</title>
+    
+    <!-- iPhone Web App 專用設定 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="A酸追蹤">
+    
+    <!-- 專屬 App Icon (使用精心設計的 SVG Data URI，確保 iPhone 能直接加載精美圖標) -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'><rect width='100' height='100' rx='22' fill='%23007AFF'/><g transform='translate(15, 15) scale(0.7)'><path d='M44.5 5A16.5 16.5 0 0 0 28 21.5V54a4.5 4.5 0 0 0 4.5 4.5h23A4.5 4.5 0 0 0 60 54V21.5A16.5 16.5 0 0 0 43.5 5z' fill='%23FFFFFF'/><path d='M44.5 91A16.5 16.5 0 0 0 60 74.5V54H28v20.5A16.5 16.5 0 0 0 44.5 91z' fill='%23FF3B30'/><circle cx='44' cy='30' r='4' fill='%23007AFF'/><path d='M30 54h28' stroke='%23333333' stroke-width='3'/></g></svg>">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        iosBlue: '#007AFF',
+                        iosGreen: '#34C759',
+                        iosRed: '#FF3B30',
+                        iosBg: '#F2F2F7',
+                        cardBg: '#FFFFFF'
+                    },
+                    fontFamily: {
+                        sans: [
+                            '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto',
+                            'Helvetica', 'Arial', 'sans-serif', '"Apple Color Emoji"', '"Segoe UI Emoji"'
+                        ],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        button, a {
+            -webkit-tap-highlight-color: transparent;
+        }
+        touch-action: manipulation;
+        .safe-bottom {
+            padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex justify-center items-stretch md:items-center overflow-hidden">
+
+    <!-- 手機容器 -->
+    <div class="w-full max-w-md bg-iosBg flex flex-col h-[100dvh] md:h-[850px] md:rounded-[40px] md:shadow-2xl md:border-8 md:border-black relative overflow-hidden">
+        
+        <!-- Main Content Scroll Area -->
+        <main class="flex-1 overflow-y-auto no-scrollbar px-5 pt-12 pb-32" id="main-content">
+            
+            <!-- 1. DASHBOARD TAB -->
+            <div id="tab-dashboard" class="space-y-6">
+                <!-- 大標題 (已改為更Fun嘅主題) -->
+                <div>
+                    <h1 class="text-xl font-bold text-gray-900 tracking-tight">今日塊面乾過沙漠未？🌵</h1>
+                    <p class="text-xs text-gray-400 font-medium mt-1">Isotretinoin Progress</p>
+                </div>
+
+                <!-- 圓形進度環卡片 -->
+                <div class="bg-cardBg p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center relative">
+                    <div class="relative w-48 h-48 flex items-center justify-center">
+                        <svg class="w-full h-full transform -rotate-90">
+                            <circle cx="96" cy="96" r="80" stroke="#E5E7EB" stroke-width="12" fill="transparent" />
+                            <circle id="progress-circle" cx="96" cy="96" r="80" stroke="#007AFF" stroke-width="12" fill="transparent"
+                                stroke-dasharray="502.6" stroke-dashoffset="502.6" stroke-linecap="round" class="transition-all duration-700 ease-out" />
+                        </svg>
+                        <div class="absolute text-center flex flex-col items-center justify-center">
+                            <span class="text-4xl font-extrabold text-gray-900 tracking-tight" id="pct-text">0.0%</span>
+                            <p class="text-[10px] text-gray-400 mt-0.5 font-bold uppercase tracking-wider">已完成劑量</p>
+                            <span class="text-[11px] text-iosBlue font-bold mt-1 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100" id="target-multiplier-display">-- mg/kg</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4 w-full mt-6 border-t border-gray-100 pt-4">
+                        <div class="text-center border-r border-gray-100">
+                            <span class="text-xs text-gray-400 block mb-0.5">累計已食</span>
+                            <span class="text-lg font-bold text-gray-800" id="stat-total-taken">0 mg</span>
+                        </div>
+                        <div class="text-center">
+                            <span class="text-xs text-gray-400 block mb-0.5">目標總劑量</span>
+                            <span class="text-lg font-bold text-iosBlue" id="stat-target-dose">0 mg</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 快捷記錄按鈕 -->
+                <div class="bg-cardBg p-5 rounded-3xl shadow-sm border border-gray-100">
+                    <h3 class="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                        <svg class="w-4 h-4 text-iosBlue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        今日快捷記錄 A酸
+                    </h3>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button onclick="quickLog(10)" class="bg-blue-50 active:scale-95 transition-transform text-iosBlue py-3 px-1 rounded-2xl font-bold text-sm border border-blue-100">10mg</button>
+                        <button onclick="quickLog(20)" class="bg-blue-50 active:scale-95 transition-transform text-iosBlue py-3 px-1 rounded-2xl font-bold text-sm border border-blue-100">20mg</button>
+                        <button onclick="quickLog(30)" class="bg-blue-50 active:scale-95 transition-transform text-iosBlue py-3 px-1 rounded-2xl font-bold text-sm border border-blue-100">30mg</button>
+                        <button onclick="quickLog(40)" class="bg-blue-50 active:scale-95 transition-transform text-iosBlue py-3 px-1 rounded-2xl font-bold text-sm border border-blue-100">40mg</button>
+                    </div>
+                    <button onclick="openCustomLogModal()" class="w-full mt-3 bg-gray-50 active:bg-gray-100 text-gray-600 text-xs font-medium py-2 rounded-xl text-center border border-gray-200">
+                        或者，手動補記其他日期或劑量...
+                    </button>
+                </div>
+
+                <!-- 驗血備忘卡片 (Reminder) -->
+                <div class="bg-cardBg p-5 rounded-3xl shadow-sm border border-gray-100 space-y-3.5">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                            <span>🩸</span> 驗血日程提醒
+                        </h3>
+                        <input type="date" id="input-blood-date" onchange="saveBloodDate()" class="text-xs bg-gray-50 border border-gray-200 rounded-lg p-1 text-gray-700">
+                    </div>
+                    <div class="flex items-center justify-between bg-amber-50/50 p-2.5 rounded-xl border border-amber-100 text-xs text-amber-800">
+                        <span>下次預計驗血日期：</span>
+                        <strong id="display-blood-date">未設定</strong>
+                    </div>
+                    <div class="space-y-1.5 pt-1">
+                        <span class="text-[10px] text-gray-400 block font-semibold uppercase">預計檢驗項目：</span>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="flex items-center gap-2 text-xs text-gray-600">
+                                <input type="checkbox" id="check-alt" onchange="saveBloodChecks()" class="rounded text-iosBlue focus:ring-iosBlue">
+                                <span>肝功能 (ALT/AST)</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-xs text-gray-600">
+                                <input type="checkbox" id="check-lip" onchange="saveBloodChecks()" class="rounded text-iosBlue focus:ring-iosBlue">
+                                <span>血脂 (膽固醇/三酸)</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 體重資訊 -->
+                <div class="bg-cardBg p-5 rounded-3xl shadow-sm border border-gray-100 space-y-4">
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-amber-50 rounded-xl text-amber-500">⚖️</div>
+                            <div>
+                                <span class="text-xs text-gray-400 block">目前設定體重</span>
+                                <span class="text-base font-bold text-gray-800" id="stat-weight">-- kg</span>
+                            </div>
+                        </div>
+                        <button onclick="switchTab('settings')" class="text-xs text-iosBlue font-semibold bg-blue-50 px-3 py-1.5 rounded-full">修改體重</button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 border-t border-gray-50 pt-3">
+                        <div>
+                            <span class="text-xs text-gray-400 block mb-0.5">重有幾多要食</span>
+                            <span class="text-base font-bold text-gray-800" id="stat-remaining">0 mg</span>
+                        </div>
+                        <div>
+                            <span class="text-xs text-gray-400 block mb-0.5">預估剩餘天數</span>
+                            <span class="text-base font-bold text-gray-800" id="stat-days-left">-- 天</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. BLOOD TAB -->
+            <div id="tab-blood" class="space-y-6 hidden">
+                <div>
+                    <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">驗血報告</h1>
+                    <p class="text-xs text-gray-400 font-medium mt-1">Blood Test Logs</p>
+                </div>
+
+                <!-- 新增血檢報告按鈕 -->
+                <div class="bg-cardBg p-5 rounded-3xl shadow-sm border border-gray-100 space-y-3">
+                    <h3 class="text-sm font-semibold text-gray-800">登記新驗血報告</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="col-span-2">
+                            <label class="text-[10px] text-gray-400 font-bold block mb-1">報告日期</label>
+                            <input type="date" id="blood-input-date" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs text-gray-800">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-400 font-bold block mb-1">ALT 肝功能 (正常 &lt;40)</label>
+                            <input type="number" id="blood-input-alt" placeholder="U/L" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs text-gray-800">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-400 font-bold block mb-1">AST 肝功能 (正常 &lt;40)</label>
+                            <input type="number" id="blood-input-ast" placeholder="U/L" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs text-gray-800">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-400 font-bold block mb-1">總膽固醇 (正常 &lt;5.2)</label>
+                            <input type="number" id="blood-input-chol" step="0.1" placeholder="mmol/L" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs text-gray-800">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-400 font-bold block mb-1">三酸甘油酯 Triglyceride (正常 &lt;1.7)</label>
+                            <input type="number" id="blood-input-tg" step="0.1" placeholder="mmol/L" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs text-gray-800">
+                        </div>
+                    </div>
+                    <button onclick="addBloodLog()" class="w-full bg-iosBlue text-white font-bold py-3 rounded-2xl text-xs active:scale-95 transition-transform mt-2">儲存驗血紀錄</button>
+                </div>
+
+                <!-- 最新驗血報告摘要 -->
+                <div class="bg-cardBg p-5 rounded-3xl shadow-sm border border-gray-100 space-y-3">
+                    <h3 class="text-sm font-semibold text-gray-800">最新驗血結果摘要</h3>
+                    <div id="latest-blood-container" class="grid grid-cols-2 gap-3 text-xs">
+                        <div class="text-center py-4 col-span-2 text-gray-400">暫無驗血數據</div>
+                    </div>
+                </div>
+
+                <!-- 歷史驗血紀錄 (可收摺) -->
+                <div class="bg-cardBg p-4 rounded-3xl shadow-sm border border-gray-100">
+                    <button onclick="toggleBloodHistory()" class="w-full flex justify-between items-center text-sm font-semibold text-gray-800">
+                        <span>歷史血檢紀錄</span>
+                        <span id="blood-history-arrow">▼</span>
+                    </button>
+                    <div id="blood-history-list" class="hidden mt-3 space-y-2.5 max-h-60 overflow-y-auto no-scrollbar">
+                        <!-- 歷史數據 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. HISTORY TAB -->
+            <div id="tab-history" class="space-y-6 hidden">
+                <div>
+                    <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">服藥紀錄</h1>
+                    <p class="text-xs text-gray-400 font-medium mt-1">Dosing History</p>
+                </div>
+                <div class="bg-cardBg p-4 rounded-3xl shadow-sm border border-gray-100">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-sm font-semibold text-gray-800">所有服藥紀錄</h3>
+                        <span class="text-xs text-gray-500" id="history-count">共 0 日</span>
+                    </div>
+                    <div id="history-list" class="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                        <!-- 服藥紀錄 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. SETTINGS TAB -->
+            <div id="tab-settings" class="space-y-6 hidden">
+                <div>
+                    <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">設定與備份</h1>
+                    <p class="text-xs text-gray-400 font-medium mt-1">Settings & Backups</p>
+                </div>
+
+                <!-- 基礎設定 -->
+                <div class="bg-cardBg p-5 rounded-3xl shadow-sm border border-gray-100 space-y-4">
+                    <h3 class="text-sm font-semibold text-gray-800 border-b border-gray-50 pb-2">療程基礎設定</h3>
+                    <div class="space-y-2">
+                        <label class="text-xs font-semibold text-gray-500 block">你嘅最新體重 (kg)</label>
+                        <div class="flex gap-2">
+                            <input type="number" id="input-weight" value="60" min="20" max="200" step="0.1"
+                                class="flex-1 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-base font-bold text-gray-800 focus:outline-none">
+                            <button onclick="saveSettings()" class="bg-iosBlue text-white font-bold px-6 py-3 rounded-2xl text-sm">儲存</button>
+                        </div>
+                    </div>
+                    <div class="space-y-2 pt-2">
+                        <label class="text-xs font-semibold text-gray-500 block">每公斤累積劑量目標 (mg/kg)</label>
+                        <select id="input-target-multiplier" onchange="saveSettings()" 
+                            class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-sm font-medium text-gray-800 focus:outline-none">
+                            <option value="120">120 mg/kg</option>
+                            <option value="135">135 mg/kg</option>
+                            <option value="150" selected>150 mg/kg</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 數據備份與匯入功能 -->
+                <div class="bg-cardBg p-5 rounded-3xl shadow-sm border border-gray-100 space-y-3">
+                    <h3 class="text-sm font-semibold text-gray-800 border-b border-gray-50 pb-2">數據安全備份 (防消失)</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="exportData()" class="bg-blue-50 text-iosBlue border border-blue-100 py-3 rounded-2xl text-xs font-bold active:scale-95 transition-transform">
+                            📤 匯出資料備份
+                        </button>
+                        <button onclick="importDataPrompt()" class="bg-green-50 text-iosGreen border border-green-100 py-3 rounded-2xl text-xs font-bold active:scale-95 transition-transform">
+                            📥 匯入資料還原
+                        </button>
+                    </div>
+                    <p class="text-[10px] text-gray-400 text-center leading-normal">
+                        * 點擊匯出會複製一串安全代碼。你可以 send 去自己 WhatsApp/備忘錄，就算遲啲清快取或者換電話，都可以隨時貼返入去還原！
+                    </p>
+                </div>
+
+                <!-- 數據管理與安全防手殘 -->
+                <div class="bg-cardBg p-5 rounded-3xl shadow-sm border border-gray-100 space-y-4">
+                    <h3 class="text-sm font-semibold text-gray-800 border-b border-gray-50 pb-2">數據管理</h3>
+                    
+                    <!-- 隱藏後悔藥按鈕（只在有備份可還原時顯示） -->
+                    <div id="rescue-container" class="hidden">
+                        <button onclick="applyRescueBackup()" class="w-full bg-amber-50 text-amber-800 border border-amber-200 active:bg-amber-100 py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-1">
+                            💊 食後悔藥 (還原上次清除嘅數據)
+                        </button>
+                        <p class="text-[10px] text-amber-600 text-center mt-1">
+                            * 偵測到你有一次不小心清除嘅歷史紀錄，點擊即可救回！
+                        </p>
+                    </div>
+
+                    <button onclick="openResetModal()" class="w-full bg-red-50 text-iosRed border border-red-100 active:bg-red-100 py-3 rounded-2xl text-sm font-bold">
+                        清除所有數據及重設
+                    </button>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- 手動補記 Modal -->
+        <div id="modal-custom-log" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-base font-bold text-gray-900">手動補記服藥</h3>
+                    <button onclick="closeCustomLogModal()" class="text-gray-400">✕</button>
+                </div>
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 block mb-1">日期</label>
+                        <input type="date" id="log-date" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800">
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 block mb-1">服藥劑量 (mg)</label>
+                        <input type="number" id="log-dose" min="5" max="100" step="5" value="20" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800">
+                    </div>
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button onclick="closeCustomLogModal()" class="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-2xl text-xs">取消</button>
+                    <button onclick="submitCustomLog()" class="flex-1 bg-iosBlue text-white font-bold py-3 rounded-2xl text-xs">確認記錄</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 自訂 iOS風格 Delete/Reset 提示 Dialog (取代瀏覽器 confirm) -->
+        <div id="modal-confirm" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div class="bg-white/95 rounded-2xl w-full max-w-xs p-5 shadow-2xl text-center space-y-4">
+                <div class="space-y-1">
+                    <h3 id="confirm-title" class="text-base font-bold text-gray-900">確認操作</h3>
+                    <p id="confirm-message" class="text-xs text-gray-500 leading-normal">你確定要執行此操作嗎？</p>
+                </div>
+                <!-- 針對 Reset 的二次確認驗證輸入框 -->
+                <div id="confirm-input-container" class="hidden">
+                    <input type="text" id="confirm-text-verify" placeholder="請輸入 RESET" class="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2 text-xs text-center font-bold tracking-widest focus:outline-none">
+                </div>
+                <div class="flex border-t border-gray-100 pt-3 gap-3">
+                    <button id="confirm-cancel-btn" class="flex-1 text-gray-500 font-bold py-2 text-xs">取消</button>
+                    <button id="confirm-ok-btn" class="flex-1 text-iosRed font-bold py-2 text-xs">確認</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification Toast -->
+        <div id="toast" class="opacity-0 pointer-events-none fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-gray-900/90 text-white text-xs font-semibold px-4 py-3 rounded-full shadow-lg transition-all duration-300 z-50">
+            <span id="toast-message">紀錄成功！</span>
+        </div>
+
+        <!-- Fixed iOS Style Tab Bar -->
+        <nav class="bg-white/95 backdrop-blur-md border-t border-gray-200 absolute bottom-0 left-0 right-0 flex justify-around items-center px-4 pt-2 z-40 shrink-0 shadow-[0_-4px_24px_rgba(0,0,0,0.04)]" style="padding-bottom: calc(10px + env(safe-area-inset-bottom));">
+            <button onclick="switchTab('dashboard')" id="nav-dashboard" class="flex flex-col items-center gap-1 text-iosBlue transition-colors w-16">
+                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+                <span class="text-[10px] font-bold">進度主頁</span>
+            </button>
+            <button onclick="switchTab('blood')" id="nav-blood" class="flex flex-col items-center gap-1 text-gray-400 transition-colors w-16">
+                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 16h-2v-2h2v2zm0-4h-2V7h2v7z"/></svg>
+                <span class="text-[10px] font-medium">驗血報告</span>
+            </button>
+            <button onclick="switchTab('history')" id="nav-history" class="flex flex-col items-center gap-1 text-gray-400 transition-colors w-16">
+                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+                <span class="text-[10px] font-medium">服藥紀錄</span>
+            </button>
+            <button onclick="switchTab('settings')" id="nav-settings" class="flex flex-col items-center gap-1 text-gray-400 transition-colors w-16">
+                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0-.46-.18-.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>
+                <span class="text-[10px] font-medium">設定備份</span>
+            </button>
+        </nav>
+
+    </div>
+
+    <script>
+        // 初始化 State
+        let state = {
+            weight: 60,                
+            targetPerKg: 150,          
+            logs: [],
+            bloodLogs: [],
+            bloodDate: "",             
+            bloodChecks: {             
+                alt: false,
+                lip: false
+            }
+        };
+
+        // 用於儲存自訂 Confirm 回傳 Promise 
+        let confirmPromiseResolve = null;
+
+        const mockLogs = [
+            { id: 1, date: getPastDateString(10), dose: 20 },
+            { id: 2, date: getPastDateString(9), dose: 20 },
+            { id: 3, date: getPastDateString(8), dose: 20 },
+            { id: 4, date: getPastDateString(7), dose: 20 },
+            { id: 5, date: getPastDateString(6), dose: 20 },
+            { id: 6, date: getPastDateString(5), dose: 20 },
+            { id: 7, date: getPastDateString(4), dose: 20 },
+            { id: 8, date: getPastDateString(3), dose: 20 },
+            { id: 9, date: getPastDateString(2), dose: 20 },
+            { id: 10, date: getPastDateString(1), dose: 20 }
+        ];
+
+        const mockBloodLogs = [
+            { id: 101, date: getPastDateString(11), alt: 24, ast: 20, chol: 4.8, tg: 1.2 }
+        ];
+
+        function getPastDateString(daysAgo) {
+            const date = new Date();
+            date.setDate(date.getDate() - daysAgo);
+            return date.toISOString().split('T')[0];
+        }
+
+        function initApp() {
+            const savedState = localStorage.getItem('accutane_tracker_state');
+            if (savedState) {
+                try {
+                    state = JSON.parse(savedState);
+                    if (!state.bloodLogs) state.bloodLogs = [];
+                    if (!state.bloodChecks) state.bloodChecks = { alt: false, lip: false };
+                    if (!state.bloodDate) state.bloodDate = "";
+                } catch (e) {
+                    console.error("無法解析儲存數據", e);
+                }
+            } else {
+                state.logs = [...mockLogs];
+                state.bloodLogs = [...mockBloodLogs];
+                state.bloodDate = getPastDateString(-20); 
+                state.bloodChecks = { alt: true, lip: true };
+                saveStateToLocalStorage();
+            }
+
+            document.getElementById('input-weight').value = state.weight;
+            document.getElementById('input-target-multiplier').value = state.targetPerKg;
+            document.getElementById('blood-input-date').value = new Date().toISOString().split('T')[0];
+            
+            document.getElementById('input-blood-date').value = state.bloodDate || "";
+            document.getElementById('check-alt').checked = state.bloodChecks.alt || false;
+            document.getElementById('check-lip').checked = state.bloodChecks.lip || false;
+
+            // 檢查是否有「後悔藥/緊急備份」
+            checkRescueBackup();
+
+            updateUI();
+        }
+
+        function saveStateToLocalStorage() {
+            localStorage.setItem('accutane_tracker_state', JSON.stringify(state));
+        }
+
+        // 檢查並顯示「後悔藥」按鈕
+        function checkRescueBackup() {
+            const rescueData = localStorage.getItem('accutane_tracker_backup_rescue');
+            const rescueContainer = document.getElementById('rescue-container');
+            if (rescueData) {
+                rescueContainer.classList.remove('hidden');
+            } else {
+                rescueContainer.classList.add('hidden');
+            }
+        }
+
+        // 儲存首頁驗血日程 Reminder
+        function saveBloodDate() {
+            state.bloodDate = document.getElementById('input-blood-date').value;
+            saveStateToLocalStorage();
+            updateUI();
+        }
+
+        function saveBloodChecks() {
+            state.bloodChecks.alt = document.getElementById('check-alt').checked;
+            state.bloodChecks.lip = document.getElementById('check-lip').checked;
+            saveStateToLocalStorage();
+            updateUI();
+        }
+
+        function switchTab(tabId) {
+            document.getElementById('tab-dashboard').classList.add('hidden');
+            document.getElementById('tab-blood').classList.add('hidden');
+            document.getElementById('tab-history').classList.add('hidden');
+            document.getElementById('tab-settings').classList.add('hidden');
+
+            document.getElementById('nav-dashboard').className = "flex flex-col items-center gap-1 text-gray-400 transition-colors w-16";
+            document.getElementById('nav-blood').className = "flex flex-col items-center gap-1 text-gray-400 transition-colors w-16";
+            document.getElementById('nav-history').className = "flex flex-col items-center gap-1 text-gray-400 transition-colors w-16";
+            document.getElementById('nav-settings').className = "flex flex-col items-center gap-1 text-gray-400 transition-colors w-16";
+
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            
+            const activeBtn = document.getElementById(`nav-${tabId}`);
+            activeBtn.className = "flex flex-col items-center gap-1 text-iosBlue transition-colors w-16";
+            activeBtn.querySelector('span').className = "text-[10px] font-bold";
+
+            // 如果切換到設定頁，順便刷一下後悔藥顯示狀態
+            if (tabId === 'settings') {
+                checkRescueBackup();
+            }
+
+            updateUI();
+        }
+
+        function updateUI() {
+            const targetDose = state.weight * state.targetPerKg;
+            const totalTaken = state.logs.reduce((sum, item) => sum + parseInt(item.dose), 0);
+            
+            let percent = 0;
+            if (targetDose > 0) {
+                percent = (totalTaken / targetDose) * 100;
+            }
+            if (percent > 100) percent = 100;
+
+            const remaining = Math.max(0, targetDose - totalTaken);
+
+            let lastDose = 20;
+            if (state.logs.length > 0) {
+                const sortedLogs = [...state.logs].sort((a,b) => new Date(b.date) - new Date(a.date));
+                lastDose = sortedLogs[0].dose;
+            }
+            const daysLeft = lastDose > 0 ? Math.ceil(remaining / lastDose) : 0;
+
+            document.getElementById('pct-text').textContent = percent.toFixed(1) + '%';
+            document.getElementById('stat-total-taken').textContent = totalTaken.toLocaleString() + ' mg';
+            document.getElementById('stat-target-dose').textContent = targetDose.toLocaleString() + ' mg';
+            document.getElementById('stat-weight').textContent = state.weight + ' kg';
+            document.getElementById('stat-remaining').textContent = remaining.toLocaleString() + ' mg';
+            document.getElementById('stat-days-left').textContent = daysLeft > 0 ? daysLeft + ' 天' : '已完成！';
+
+            document.getElementById('target-multiplier-display').textContent = `目標: ${state.targetPerKg} mg/kg`;
+
+            if (state.bloodDate) {
+                document.getElementById('display-blood-date').textContent = formatChineseDate(state.bloodDate);
+            } else {
+                document.getElementById('display-blood-date').textContent = "未設定";
+            }
+
+            const circle = document.getElementById('progress-circle');
+            const circumference = 502.6;
+            const strokeDashoffset = circumference - (percent / 100) * circumference;
+            circle.style.strokeDasharray = circumference;
+            circle.style.strokeDashoffset = strokeDashoffset;
+
+            renderLatestBlood();
+            renderBloodHistoryList();
+            renderHistoryList();
+        }
+
+        // 渲染最新驗血摘要
+        function renderLatestBlood() {
+            const container = document.getElementById('latest-blood-container');
+            if (state.bloodLogs.length === 0) {
+                container.innerHTML = `<div class="text-center py-4 col-span-2 text-gray-400">暫無驗血數據</div>`;
+                return;
+            }
+
+            const sorted = [...state.bloodLogs].sort((a, b) => new Date(b.date) - new Date(a.date));
+            const latest = sorted[0];
+
+            const altClass = latest.alt > 40 ? 'text-iosRed font-bold' : 'text-gray-800 font-bold';
+            const astClass = latest.ast > 40 ? 'text-iosRed font-bold' : 'text-gray-800 font-bold';
+            const cholClass = latest.chol > 5.2 ? 'text-iosRed font-bold' : 'text-gray-800 font-bold';
+            const tgClass = latest.tg > 1.7 ? 'text-iosRed font-bold' : 'text-gray-800 font-bold';
+
+            container.innerHTML = `
+                <div class="col-span-2 text-center bg-gray-50 py-1.5 rounded-lg text-[10px] text-gray-400 font-bold">報告日期: ${formatChineseDate(latest.date)}</div>
+                <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100 flex justify-between items-center">
+                    <span class="text-gray-500">ALT (肝)</span>
+                    <span class="${altClass}">${latest.alt || '--'} U/L</span>
+                </div>
+                <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100 flex justify-between items-center">
+                    <span class="text-gray-500">AST (肝)</span>
+                    <span class="${astClass}">${latest.ast || '--'} U/L</span>
+                </div>
+                <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100 flex justify-between items-center">
+                    <span class="text-gray-500">總膽固醇</span>
+                    <span class="${cholClass}">${latest.chol || '--'} mmol/L</span>
+                </div>
+                <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100 flex justify-between items-center">
+                    <span class="text-gray-500">三酸甘油</span>
+                    <span class="${tgClass}">${latest.tg || '--'} mmol/L</span>
+                </div>
+            `;
+        }
+
+        // 新增驗血數據
+        function addBloodLog() {
+            const date = document.getElementById('blood-input-date').value;
+            const alt = parseFloat(document.getElementById('blood-input-alt').value) || 0;
+            const ast = parseFloat(document.getElementById('blood-input-ast').value) || 0;
+            const chol = parseFloat(document.getElementById('blood-input-chol').value) || 0;
+            const tg = parseFloat(document.getElementById('blood-input-tg').value) || 0;
+
+            if (!date) {
+                showToast("請選擇報告日期！");
+                return;
+            }
+
+            state.bloodLogs.push({
+                id: Date.now(),
+                date, alt, ast, chol, tg
+            });
+
+            saveStateToLocalStorage();
+            updateUI();
+            showToast("驗血報告已登記！");
+
+            document.getElementById('blood-input-alt').value = "";
+            document.getElementById('blood-input-ast').value = "";
+            document.getElementById('blood-input-chol').value = "";
+            document.getElementById('blood-input-tg').value = "";
+        }
+
+        async function deleteBloodLog(id) {
+            const confirmDelete = await showConfirmModal("刪除血檢紀錄", "確定要刪除此驗血紀錄嗎？此動作無法復原。");
+            if (confirmDelete) {
+                state.bloodLogs = state.bloodLogs.filter(log => log.id !== id);
+                saveStateToLocalStorage();
+                updateUI();
+                showToast("驗血紀錄已刪除");
+            }
+        }
+
+        function toggleBloodHistory() {
+            const list = document.getElementById('blood-history-list');
+            const arrow = document.getElementById('blood-history-arrow');
+            if (list.classList.contains('hidden')) {
+                list.classList.remove('hidden');
+                arrow.textContent = '▲';
+            } else {
+                list.classList.add('hidden');
+                arrow.textContent = '▼';
+            }
+        }
+
+        function renderBloodHistoryList() {
+            const list = document.getElementById('blood-history-list');
+            if (state.bloodLogs.length === 0) {
+                list.innerHTML = `<div class="text-center py-4 text-gray-400 text-xs">無歷史數據</div>`;
+                return;
+            }
+
+            const sorted = [...state.bloodLogs].sort((a, b) => new Date(b.date) - new Date(a.date));
+            list.innerHTML = sorted.map(log => `
+                <div class="bg-gray-50 p-3 rounded-2xl text-[11px] border border-gray-100 flex justify-between items-center">
+                    <div>
+                        <span class="font-bold text-gray-700 block mb-1">${formatChineseDate(log.date)}</span>
+                        <span class="text-gray-500">ALT: ${log.alt} | AST: ${log.ast} | 膽固醇: ${log.chol} | 三酸甘油: ${log.tg}</span>
+                    </div>
+                    <button onclick="deleteBloodLog(${log.id})" class="text-iosRed font-semibold px-2 py-1 bg-red-50 rounded-lg text-xs">刪除</button>
+                </div>
+            `).join('');
+        }
+
+        function renderHistoryList() {
+            const listContainer = document.getElementById('history-list');
+            const countLabel = document.getElementById('history-count');
+            countLabel.textContent = `共 ${state.logs.length} 日`;
+
+            if (state.logs.length === 0) {
+                listContainer.innerHTML = `<div class="text-center py-12 text-gray-400 text-sm">暫無服藥紀錄</div>`;
+                return;
+            }
+
+            const sortedLogs = [...state.logs].sort((a, b) => new Date(b.date) - new Date(a.date));
+            listContainer.innerHTML = sortedLogs.map(log => `
+                <div class="flex justify-between items-center bg-gray-50 p-3.5 rounded-2xl border border-gray-100">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-iosBlue text-xs font-bold shrink-0">💊</div>
+                        <div>
+                            <span class="text-[10px] text-gray-400 block">${formatChineseDate(log.date)}</span>
+                            <span class="text-sm font-bold text-gray-800">${log.dose} mg</span>
+                        </div>
+                    </div>
+                    <button onclick="deleteLog(${log.id})" class="text-xs text-iosRed active:text-red-700 font-semibold px-2 py-1 bg-red-50 hover:bg-red-100 rounded-lg">刪除</button>
+                </div>
+            `).join('');
+        }
+
+        function formatChineseDate(dateStr) {
+            const parts = dateStr.split('-');
+            if (parts.length === 3) return `${parts[0]}年${parts[1]}月${parts[2]}日`;
+            return dateStr;
+        }
+
+        function quickLog(dose) {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const existingLogIndex = state.logs.findIndex(log => log.date === todayStr);
+            
+            if (existingLogIndex !== -1) {
+                state.logs[existingLogIndex].dose = dose;
+                showToast(`今日服藥已更新為 ${dose}mg ！`);
+            } else {
+                state.logs.push({ id: Date.now(), date: todayStr, dose });
+                showToast(`成功記錄今日 ${dose}mg A酸！`);
+            }
+
+            saveStateToLocalStorage();
+            updateUI();
+        }
+
+        function openCustomLogModal() {
+            document.getElementById('log-date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('modal-custom-log').classList.remove('hidden');
+        }
+
+        function closeCustomLogModal() {
+            document.getElementById('modal-custom-log').classList.add('hidden');
+        }
+
+        function submitCustomLog() {
+            const dateVal = document.getElementById('log-date').value;
+            const doseVal = parseInt(document.getElementById('log-dose').value);
+
+            if (!dateVal || isNaN(doseVal) || doseVal <= 0) {
+                showToast("請輸入正確資料！");
+                return;
+            }
+
+            const dupIndex = state.logs.findIndex(log => log.date === dateVal);
+            if (dupIndex !== -1) {
+                state.logs[dupIndex].dose = doseVal;
+            } else {
+                state.logs.push({ id: Date.now(), date: dateVal, dose: doseVal });
+            }
+
+            saveStateToLocalStorage();
+            closeCustomLogModal();
+            updateUI();
+            showToast("紀錄已保存！");
+        }
+
+        async function deleteLog(id) {
+            const confirmDelete = await showConfirmModal("刪除服藥紀錄", "確定要刪除呢條服藥紀錄嗎？");
+            if (confirmDelete) {
+                state.logs = state.logs.filter(log => log.id !== id);
+                saveStateToLocalStorage();
+                updateUI();
+                showToast("紀錄已刪除");
+            }
+        }
+
+        function saveSettings() {
+            const weightInput = parseFloat(document.getElementById('input-weight').value);
+            const multiplierInput = parseInt(document.getElementById('input-target-multiplier').value);
+
+            if (isNaN(weightInput) || weightInput <= 0) {
+                showToast("體重輸入有誤！");
+                return;
+            }
+
+            state.weight = weightInput;
+            state.targetPerKg = multiplierInput;
+
+            saveStateToLocalStorage();
+            updateUI();
+            showToast("基礎設定已儲存！");
+        }
+
+        // ==================== 自訂彈窗 Confirm 邏輯 (全面替代原生 confirm) ====================
+        function showConfirmModal(title, message, showVerifyInput = false) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('modal-confirm');
+                const titleEl = document.getElementById('confirm-title');
+                const msgEl = document.getElementById('confirm-message');
+                const inputContainer = document.getElementById('confirm-input-container');
+                const inputVerify = document.getElementById('confirm-text-verify');
+                const okBtn = document.getElementById('confirm-ok-btn');
+                const cancelBtn = document.getElementById('confirm-cancel-btn');
+
+                titleEl.textContent = title;
+                msgEl.textContent = message;
+                inputVerify.value = "";
+
+                if (showVerifyInput) {
+                    inputContainer.classList.remove('hidden');
+                } else {
+                    inputContainer.classList.add('hidden');
+                }
+
+                modal.classList.remove('hidden');
+
+                // 移除舊的 event listener
+                const cleanUp = () => {
+                    modal.classList.add('hidden');
+                    okBtn.onclick = null;
+                    cancelBtn.onclick = null;
+                };
+
+                okBtn.onclick = () => {
+                    if (showVerifyInput) {
+                        const code = inputVerify.value.trim().toUpperCase();
+                        if (code !== 'RESET') {
+                            showToast("請輸入正確的 RESET 確認！");
+                            return;
+                        }
+                    }
+                    cleanUp();
+                    resolve(true);
+                };
+
+                cancelBtn.onclick = () => {
+                    cleanUp();
+                    resolve(false);
+                };
+            });
+        }
+
+        // 開啟清除數據彈窗
+        async function openResetModal() {
+            const confirmReset = await showConfirmModal(
+                "⚠️ 安全警告", 
+                "你確定要清除所有服藥及驗血歷史紀錄嗎？請輸入 RESET 以確認此重大操作：", 
+                true
+            );
+
+            if (confirmReset) {
+                // 自動防呆備份！在徹底刪除前，複製當前狀態去後悔藥緩衝區
+                localStorage.setItem('accutane_tracker_backup_rescue', JSON.stringify(state));
+
+                // 執行清除
+                state = { 
+                    weight: 60, 
+                    targetPerKg: 150, 
+                    logs: [], 
+                    bloodLogs: [], 
+                    bloodDate: "", 
+                    bloodChecks: { alt: false, lip: false } 
+                };
+                
+                document.getElementById('input-weight').value = 60;
+                document.getElementById('input-target-multiplier').value = 150;
+                document.getElementById('input-blood-date').value = "";
+                document.getElementById('check-alt').checked = false;
+                document.getElementById('check-lip').checked = false;
+                
+                saveStateToLocalStorage();
+                checkRescueBackup(); // 更新後悔藥按鈕
+                updateUI();
+                showToast("數據已安全重設！");
+                switchTab('dashboard');
+            }
+        }
+
+        // 食後悔藥 (還原上次清除嘅數據)
+        async function applyRescueBackup() {
+            const rescueData = localStorage.getItem('accutane_tracker_backup_rescue');
+            if (!rescueData) {
+                showToast("未偵測到有可還原嘅數據！");
+                return;
+            }
+
+            const confirmRescue = await showConfirmModal(
+                "💊 服用後悔藥", 
+                "確定要復原上一次被清空嘅數據嗎？這會覆蓋你目前嘅數據。"
+            );
+
+            if (confirmRescue) {
+                try {
+                    state = JSON.parse(rescueData);
+                    saveStateToLocalStorage();
+                    
+                    document.getElementById('input-weight').value = state.weight;
+                    document.getElementById('input-target-multiplier').value = state.targetPerKg;
+                    document.getElementById('input-blood-date').value = state.bloodDate || "";
+                    document.getElementById('check-alt').checked = state.bloodChecks.alt || false;
+                    document.getElementById('check-lip').checked = state.bloodChecks.lip || false;
+
+                    // 清除後悔藥（避免無限重複吃藥）
+                    localStorage.removeItem('accutane_tracker_backup_rescue');
+                    checkRescueBackup();
+
+                    updateUI();
+                    alert("🎉 太好了！所有歷史數據已經完美還原！");
+                } catch(e) {
+                    showToast("還原失敗，數據格式有誤。");
+                }
+            }
+        }
+
+        // ==================== 雲端資料安全備份與回復功能 ====================
+        function exportData() {
+            try {
+                const dataString = JSON.stringify(state);
+                const encodedData = btoa(encodeURIComponent(dataString));
+                
+                const tempTextArea = document.createElement('textarea');
+                tempTextArea.value = encodedData;
+                document.body.appendChild(tempTextArea);
+                tempTextArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(tempTextArea);
+                
+                alert("🔒 備份代碼已成功複製到你的剪貼簿！\n\n你可以將呢串代碼 Send 到自己嘅 WhatsApp 或備忘錄。需要還原時，直接喺設定點選「匯入資料還原」並貼上此代碼即可。");
+            } catch (e) {
+                showToast("匯出失敗，請重試");
+            }
+        }
+
+        function importDataPrompt() {
+            const inputCode = prompt("📥 請貼上你之前備份嘅加密代碼：");
+            if (!inputCode) return;
+
+            try {
+                const decodedData = decodeURIComponent(atob(inputCode.trim()));
+                const parsedState = JSON.parse(decodedData);
+
+                if (parsedState && typeof parsedState === 'object') {
+                    // 還原前也做一次隱藏備份，防止把有用數據意外覆蓋
+                    localStorage.setItem('accutane_tracker_backup_rescue', JSON.stringify(state));
+
+                    state = parsedState;
+                    if (!state.bloodLogs) state.bloodLogs = [];
+                    if (!state.bloodChecks) state.bloodChecks = { alt: false, lip: false };
+                    if (!state.bloodDate) state.bloodDate = "";
+                    
+                    saveStateToLocalStorage();
+                    
+                    document.getElementById('input-weight').value = state.weight;
+                    document.getElementById('input-target-multiplier').value = state.targetPerKg;
+                    document.getElementById('input-blood-date').value = state.bloodDate || "";
+                    document.getElementById('check-alt').checked = state.bloodChecks.alt || false;
+                    document.getElementById('check-lip').checked = state.bloodChecks.lip || false;
+                    
+                    checkRescueBackup();
+                    updateUI();
+                    alert("🎉 資料已成功還原！");
+                } else {
+                    alert("錯誤：備份代碼無效！");
+                }
+            } catch (e) {
+                alert("❌ 還原失敗：請確保你貼上嘅代碼完整且無修改。");
+            }
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').textContent = message;
+            toast.className = "opacity-100 pointer-events-auto fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-gray-900/90 text-white text-xs font-semibold px-5 py-3.5 rounded-full shadow-lg transition-all duration-300 z-50";
+            setTimeout(() => {
+                toast.className = "opacity-0 pointer-events-none fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-gray-900/90 text-white text-xs font-semibold px-5 py-3.5 rounded-full shadow-lg transition-all duration-300 z-50";
+            }, 2200);
+        }
+
+        window.onload = function () {
+            initApp();
+        };
+    </script>
+</body>
+</html>
