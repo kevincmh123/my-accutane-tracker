@@ -1,81 +1,95 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+let state = {
+  weight: 60,
+  mult: 150,
+  logs: [],
+  blood: []
+};
 
-<title>A酸追蹤器</title>
+function init(){
+  const saved = localStorage.getItem("accu5");
+  if(saved) state = JSON.parse(saved);
+  render();
+}
+window.onload = init;
 
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="A酸追蹤">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+function save(){
+  localStorage.setItem("accu5", JSON.stringify(state));
+}
 
-<link rel="apple-touch-icon" href="icon.svg">
-<link rel="stylesheet" href="styles.css">
-</head>
+/* ---------- DOSE ---------- */
+function logDose(mg){
+  const d = today();
 
-<body>
+  const ex = state.logs.find(x=>x.date===d);
+  if(ex) ex.dose = mg;
+  else state.logs.push({date:d,dose:mg});
 
-<div class="app">
+  save(); render();
+}
 
-<!-- TOP -->
-<header class="header">
-  <div>
-    <h1>今日乾唔乾？🌵</h1>
-    <p>Accutane Tracker</p>
-  </div>
-</header>
+/* ---------- BLOOD ---------- */
+function addBlood(){
+  state.blood.push({
+    date: today(),
+    alt:+alt.value,
+    ast:+ast.value,
+    chol:+chol.value,
+    tg:+tg.value
+  });
 
-<!-- PROGRESS -->
-<section class="card center">
-  <div class="circle">
-    <svg viewBox="0 0 120 120">
-      <circle cx="60" cy="60" r="54" class="bg"/>
-      <circle cx="60" cy="60" r="54" class="progress" id="progressRing"/>
-    </svg>
-    <div class="circle-text">
-      <div id="percent">0%</div>
-      <small>完成</small>
-    </div>
-  </div>
+  save(); render();
+}
 
-  <div class="stats">
-    <div>
-      <span>已食</span>
-      <b id="taken">0</b>
-    </div>
-    <div>
-      <span>目標</span>
-      <b id="target">0</b>
-    </div>
-  </div>
-</section>
+/* ---------- CALC ---------- */
+function calc(){
+  const target = state.weight * state.mult;
+  const taken = state.logs.reduce((a,b)=>a+b.dose,0);
+  const pct = Math.min(100,(taken/target)*100);
+  return {target,taken,pct};
+}
 
-<!-- QUICK ACTION -->
-<section class="card">
-  <h3>Quick Log</h3>
-  <div class="grid">
-    <button onclick="logDose(10)">10</button>
-    <button onclick="logDose(20)">20</button>
-    <button onclick="logDose(30)">30</button>
-    <button onclick="logDose(40)">40</button>
-  </div>
-</section>
+/* ---------- RENDER ---------- */
+function render(){
+  const {target,taken,pct} = calc();
 
-<!-- HISTORY -->
-<section class="card">
-  <h3>History</h3>
-  <div id="history"></div>
-</section>
+  percent.innerText = pct.toFixed(1)+"%";
+  takenEl().innerText = taken;
+  targetEl().innerText = target;
 
-<!-- NAV -->
-<nav>
-  <button onclick="tab('home')">Home</button>
-  <button onclick="tab('history')">Log</button>
-</nav>
+  const ring = document.getElementById("ring");
+  const c = 339;
+  ring.style.strokeDashoffset = c - c*(pct/100);
 
-</div>
+  history.innerHTML = state.logs
+    .sort((a,b)=>b.date.localeCompare(a.date))
+    .map(x=>`<div>${x.date} - ${x.dose}mg</div>`).join("");
 
-<script src="app.js"></script>
-</body>
-</html>
+  bloodList.innerHTML = state.blood
+    .map(b=>{
+      const level = (b.alt>40||b.ast>40)?"red":"green";
+      return `<div class="${level}">
+        ${b.date} ALT:${b.alt} AST:${b.ast}
+      </div>`;
+    }).join("");
+}
+
+/* ---------- SETTINGS ---------- */
+function saveSettings(){
+  state.weight = +weight.value;
+  state.mult = +mult.value;
+  save(); render();
+}
+
+/* ---------- TAB ---------- */
+function switchTab(t){
+  document.querySelectorAll(".tab").forEach(x=>x.classList.add("hidden"));
+  document.getElementById("tab-"+t).classList.remove("hidden");
+}
+
+/* ---------- HELPERS ---------- */
+function today(){
+  return new Date().toISOString().split("T")[0];
+}
+
+function takenEl(){return document.getElementById("taken")}
+function targetEl(){return document.getElementById("target")}
