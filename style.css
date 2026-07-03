@@ -1,0 +1,35 @@
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #F2F2F7;
+    color: #111;
+}
+
+#app {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* top bar */
+.topbar {
+    padding: 16px;
+    font-weight: 700;
+}
+
+/* main */
+#view {
+    flex: 1;
+    overflow: auto;
+    padding: 16px;
+}
+
+/* tab bar */
+.tabbar {
+    height: 64px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    background: white;
+    border-top: 1px solid #ddd;
+}
