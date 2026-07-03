@@ -1,74 +1,95 @@
 let state = {
   weight: 60,
-  targetPerKg: 150,
-  logs: []
+  mult: 150,
+  logs: [],
+  blood: []
 };
 
-// ---------- INIT ----------
 function init(){
-  const saved = localStorage.getItem("accu");
+  const saved = localStorage.getItem("accu5");
   if(saved) state = JSON.parse(saved);
-
   render();
 }
 window.onload = init;
 
-// ---------- SAVE ----------
 function save(){
-  localStorage.setItem("accu", JSON.stringify(state));
+  localStorage.setItem("accu5", JSON.stringify(state));
 }
 
-// ---------- LOG DOSE ----------
+/* ---------- DOSE ---------- */
 function logDose(mg){
-  const today = new Date().toISOString().split("T")[0];
+  const d = today();
 
-  const existing = state.logs.find(l => l.date === today);
+  const ex = state.logs.find(x=>x.date===d);
+  if(ex) ex.dose = mg;
+  else state.logs.push({date:d,dose:mg});
 
-  if(existing){
-    existing.dose = mg;
-  } else {
-    state.logs.push({ date: today, dose: mg });
-  }
-
-  save();
-  render();
+  save(); render();
 }
 
-// ---------- CALC ----------
+/* ---------- BLOOD ---------- */
+function addBlood(){
+  state.blood.push({
+    date: today(),
+    alt:+alt.value,
+    ast:+ast.value,
+    chol:+chol.value,
+    tg:+tg.value
+  });
+
+  save(); render();
+}
+
+/* ---------- CALC ---------- */
 function calc(){
-  const target = state.weight * state.targetPerKg;
-  const taken = state.logs.reduce((a,b)=>a + b.dose, 0);
-  const percent = Math.min(100, (taken / target) * 100);
-
-  return { target, taken, percent };
+  const target = state.weight * state.mult;
+  const taken = state.logs.reduce((a,b)=>a+b.dose,0);
+  const pct = Math.min(100,(taken/target)*100);
+  return {target,taken,pct};
 }
 
-// ---------- RENDER ----------
+/* ---------- RENDER ---------- */
 function render(){
-  const {target, taken, percent} = calc();
+  const {target,taken,pct} = calc();
 
-  document.getElementById("taken").innerText = taken;
-  document.getElementById("target").innerText = target;
-  document.getElementById("percent").innerText = percent.toFixed(1) + "%";
+  percent.innerText = pct.toFixed(1)+"%";
+  takenEl().innerText = taken;
+  targetEl().innerText = target;
 
-  // ring
-  const ring = document.getElementById("progressRing");
-  const offset = 339 - (339 * percent / 100);
-  ring.style.strokeDashoffset = offset;
+  const ring = document.getElementById("ring");
+  const c = 339;
+  ring.style.strokeDashoffset = c - c*(pct/100);
 
-  // history
-  const h = document.getElementById("history");
-  h.innerHTML = state.logs
+  history.innerHTML = state.logs
     .sort((a,b)=>b.date.localeCompare(a.date))
-    .map(l => `
-      <div class="item">
-        <span>${l.date}</span>
-        <b>${l.dose}mg</b>
-      </div>
-    `).join("");
+    .map(x=>`<div>${x.date} - ${x.dose}mg</div>`).join("");
+
+  bloodList.innerHTML = state.blood
+    .map(b=>{
+      const level = (b.alt>40||b.ast>40)?"red":"green";
+      return `<div class="${level}">
+        ${b.date} ALT:${b.alt} AST:${b.ast}
+      </div>`;
+    }).join("");
 }
 
-// ---------- TAB ----------
-function tab(name){
-  alert("Phase 4 simplified UI - next upgrade can restore full tabs 😎");
+/* ---------- SETTINGS ---------- */
+function saveSettings(){
+  state.weight = +weight.value;
+  state.mult = +mult.value;
+  save(); render();
 }
+
+/* ---------- TAB ---------- */
+function switchTab(t){
+  document.querySelectorAll(".tab").forEach(x=>x.classList.add("hidden"));
+  document.getElementById("tab-"+t).classList.remove("hidden");
+}
+
+/* ---------- HELPERS ---------- */
+function today(){
+  return new Date().toISOString().split("T")[0];
+}
+
+function takenEl(){return document.getElementById("taken")}
+function targetEl(){return document.getElementById("target")}
