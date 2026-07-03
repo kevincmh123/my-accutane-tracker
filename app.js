@@ -1,7 +1,3 @@
-// ========================
-// 💊 Accutane Tracker v3
-// ========================
-
 let state = {
     tab: "dashboard",
     weight: 60,
@@ -10,7 +6,7 @@ let state = {
 };
 
 // ========================
-// Init
+// INIT
 // ========================
 
 window.onload = () => {
@@ -19,7 +15,7 @@ window.onload = () => {
 };
 
 // ========================
-// Storage
+// STORAGE
 // ========================
 
 function loadState() {
@@ -29,7 +25,7 @@ function loadState() {
         try {
             state = JSON.parse(saved);
         } catch (e) {
-            console.error("State parse error:", e);
+            console.error("Failed to parse state", e);
             saveState();
         }
     } else {
@@ -42,7 +38,7 @@ function saveState() {
 }
 
 // ========================
-// Core logic
+// CALCULATION
 // ========================
 
 function calculate() {
@@ -56,7 +52,7 @@ function calculate() {
 }
 
 // ========================
-// Actions
+// ACTIONS
 // ========================
 
 function switchTab(tab) {
@@ -80,7 +76,26 @@ function quickLog(dose) {
 }
 
 // ========================
-// Render
+// SETTINGS (simple version)
+// ========================
+
+function updateWeight(value) {
+    const w = parseFloat(value);
+    if (!isNaN(w) && w > 0) {
+        state.weight = w;
+        saveState();
+        render();
+    }
+}
+
+function updateTarget(value) {
+    state.targetPerKg = parseInt(value);
+    saveState();
+    render();
+}
+
+// ========================
+// RENDER
 // ========================
 
 function render() {
@@ -89,9 +104,9 @@ function render() {
 
     const { target, taken, percent, remaining } = calculate();
 
-    // ======================
+    // ========================
     // DASHBOARD
-    // ======================
+    // ========================
     if (state.tab === "dashboard") {
         view.innerHTML = `
             <div class="card">
@@ -121,9 +136,9 @@ function render() {
         `;
     }
 
-    // ======================
+    // ========================
     // HISTORY
-    // ======================
+    // ========================
     if (state.tab === "history") {
 
         const sorted = [...state.logs]
@@ -136,7 +151,7 @@ function render() {
 
             ${sorted.length === 0 ? `
                 <div class="card">
-                    <p>未有紀錄</p>
+                    <p>暫時未有紀錄</p>
                 </div>
             ` : sorted.map(l => `
                 <div class="card">
@@ -149,28 +164,40 @@ function render() {
         `;
     }
 
-    // ======================
+    // ========================
     // BLOOD (placeholder)
-    // ======================
+    // ========================
     if (state.tab === "blood") {
         view.innerHTML = `
             <div class="card">
                 <h2>🩸 Blood Test</h2>
-                <p>Coming next phase</p>
+                <p>下一個 phase upgrade</p>
             </div>
         `;
     }
 
-    // ======================
+    // ========================
     // SETTINGS
-    // ======================
+    // ========================
     if (state.tab === "settings") {
         view.innerHTML = `
             <div class="card">
                 <h2>⚙️ Settings</h2>
 
-                <p>Weight: ${state.weight} kg</p>
-                <p>Target: ${state.targetPerKg} mg/kg</p>
+                <div style="margin-top:10px">
+                    <label>Weight (kg)</label>
+                    <input type="number" value="${state.weight}"
+                        onchange="updateWeight(this.value)">
+                </div>
+
+                <div style="margin-top:10px">
+                    <label>Target mg/kg</label>
+                    <select onchange="updateTarget(this.value)">
+                        <option value="120" ${state.targetPerKg==120?'selected':''}>120</option>
+                        <option value="135" ${state.targetPerKg==135?'selected':''}>135</option>
+                        <option value="150" ${state.targetPerKg==150?'selected':''}>150</option>
+                    </select>
+                </div>
             </div>
         `;
     }
