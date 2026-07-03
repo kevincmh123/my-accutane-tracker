@@ -1,271 +1,81 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Accutane Tracker</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 
-<style>
-body {
-    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-    background: #F2F2F7;
-    margin: 0;
-    padding: 16px;
-}
+<title>A酸追蹤器</title>
 
-h2 { margin: 0 0 10px; }
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="A酸追蹤">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 
-.card {
-    background: white;
-    border-radius: 20px;
-    padding: 16px;
-    margin-bottom: 12px;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.05);
-}
-
-.big {
-    font-size: 44px;
-    font-weight: 900;
-}
-
-.bar {
-    height: 10px;
-    background: #eee;
-    border-radius: 999px;
-    overflow: hidden;
-    margin: 10px 0;
-}
-
-.bar-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #007AFF, #5856D6);
-    transition: width 0.3s ease;
-}
-
-.grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-}
-
-button {
-    padding: 10px;
-    border-radius: 12px;
-    border: none;
-    background: #007AFF;
-    color: white;
-    font-weight: 700;
-}
-
-nav {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    display: flex;
-    background: white;
-    border-top: 1px solid #eee;
-}
-
-nav button {
-    flex: 1;
-    border-radius: 0;
-    background: none;
-    color: #333;
-    font-weight: 600;
-}
-</style>
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
 
-<!-- MAIN VIEW -->
-<div id="view"></div>
+<div class="app">
+
+<!-- TOP -->
+<header class="header">
+  <div>
+    <h1>今日乾唔乾？🌵</h1>
+    <p>Accutane Tracker</p>
+  </div>
+</header>
+
+<!-- PROGRESS -->
+<section class="card center">
+  <div class="circle">
+    <svg viewBox="0 0 120 120">
+      <circle cx="60" cy="60" r="54" class="bg"/>
+      <circle cx="60" cy="60" r="54" class="progress" id="progressRing"/>
+    </svg>
+    <div class="circle-text">
+      <div id="percent">0%</div>
+      <small>完成</small>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div>
+      <span>已食</span>
+      <b id="taken">0</b>
+    </div>
+    <div>
+      <span>目標</span>
+      <b id="target">0</b>
+    </div>
+  </div>
+</section>
+
+<!-- QUICK ACTION -->
+<section class="card">
+  <h3>Quick Log</h3>
+  <div class="grid">
+    <button onclick="logDose(10)">10</button>
+    <button onclick="logDose(20)">20</button>
+    <button onclick="logDose(30)">30</button>
+    <button onclick="logDose(40)">40</button>
+  </div>
+</section>
+
+<!-- HISTORY -->
+<section class="card">
+  <h3>History</h3>
+  <div id="history"></div>
+</section>
 
 <!-- NAV -->
 <nav>
-    <button onclick="switchTab('dashboard')">Home</button>
-    <button onclick="switchTab('history')">History</button>
-    <button onclick="switchTab('blood')">Blood</button>
-    <button onclick="switchTab('settings')">Settings</button>
+  <button onclick="tab('home')">Home</button>
+  <button onclick="tab('history')">Log</button>
 </nav>
 
-<script>
-// ========================
-// STATE
-// ========================
-let state = {
-    tab: "dashboard",
-    weight: 60,
-    targetPerKg: 150,
-    logs: []
-};
+</div>
 
-// ========================
-// INIT
-// ========================
-window.onload = () => {
-    loadState();
-    render();
-};
-
-// ========================
-// STORAGE
-// ========================
-function loadState() {
-    const saved = localStorage.getItem("accu_state");
-    if (saved) {
-        try {
-            state = JSON.parse(saved);
-        } catch (e) {
-            saveState();
-        }
-    } else {
-        saveState();
-    }
-}
-
-function saveState() {
-    localStorage.setItem("accu_state", JSON.stringify(state));
-}
-
-// ========================
-// CALC
-// ========================
-function calculate() {
-    const target = state.weight * state.targetPerKg;
-    const taken = state.logs.reduce((s, l) => s + l.dose, 0);
-
-    const percent = target ? Math.min(100, (taken / target) * 100) : 0;
-    const remaining = Math.max(0, target - taken);
-
-    return { target, taken, percent, remaining };
-}
-
-// ========================
-// ACTIONS
-// ========================
-function switchTab(tab) {
-    state.tab = tab;
-    render();
-}
-
-function quickLog(dose) {
-    const today = new Date().toISOString().split("T")[0];
-
-    const existing = state.logs.find(l => l.date === today);
-
-    if (existing) existing.dose = dose;
-    else state.logs.push({ date: today, dose });
-
-    saveState();
-    render();
-}
-
-function updateWeight(v) {
-    state.weight = parseFloat(v) || 0;
-    saveState();
-    render();
-}
-
-function updateTarget(v) {
-    state.targetPerKg = parseInt(v);
-    saveState();
-    render();
-}
-
-// ========================
-// RENDER
-// ========================
-function render() {
-    const view = document.getElementById("view");
-    const { target, taken, percent, remaining } = calculate();
-
-    // DASHBOARD
-    if (state.tab === "dashboard") {
-        view.innerHTML = `
-            <div class="card">
-                <h2>💊 今日進度</h2>
-                <div class="big">${percent.toFixed(1)}%</div>
-
-                <div class="bar">
-                    <div class="bar-fill" style="width:${percent}%"></div>
-                </div>
-
-                <p>已食：${taken} mg</p>
-                <p>目標：${target} mg</p>
-                <p>剩餘：${remaining} mg</p>
-            </div>
-
-            <div class="card">
-                <h3>⚡ Quick Log</h3>
-                <div class="grid">
-                    <button onclick="quickLog(10)">10</button>
-                    <button onclick="quickLog(20)">20</button>
-                    <button onclick="quickLog(30)">30</button>
-                    <button onclick="quickLog(40)">40</button>
-                </div>
-            </div>
-        `;
-    }
-
-    // HISTORY
-    if (state.tab === "history") {
-        const sorted = [...state.logs].sort((a,b)=> new Date(b.date)-new Date(a.date));
-
-        view.innerHTML = `
-            <div class="card">
-                <h2>📜 History</h2>
-            </div>
-
-            ${sorted.length === 0 ? `
-                <div class="card">No records</div>
-            ` : sorted.map(l => `
-                <div class="card">
-                    <div>${l.date}</div>
-                    <div style="font-size:22px;font-weight:800;color:#007AFF">
-                        💊 ${l.dose} mg
-                    </div>
-                </div>
-            `).join("")}
-        `;
-    }
-
-    // BLOOD
-    if (state.tab === "blood") {
-        view.innerHTML = `
-            <div class="card">
-                <h2>🩸 Blood</h2>
-                <p>Phase 4 coming</p>
-            </div>
-        `;
-    }
-
-    // SETTINGS
-    if (state.tab === "settings") {
-        view.innerHTML = `
-            <div class="card">
-                <h2>⚙️ Settings</h2>
-
-                <div>
-                    <p>Weight</p>
-                    <input type="number" value="${state.weight}"
-                        onchange="updateWeight(this.value)">
-                </div>
-
-                <div>
-                    <p>Target mg/kg</p>
-                    <select onchange="updateTarget(this.value)">
-                        <option value="120" ${state.targetPerKg==120?'selected':''}>120</option>
-                        <option value="135" ${state.targetPerKg==135?'selected':''}>135</option>
-                        <option value="150" ${state.targetPerKg==150?'selected':''}>150</option>
-                    </select>
-                </div>
-            </div>
-        `;
-    }
-}
-</script>
-
+<script src="app.js"></script>
 </body>
 </html>
